@@ -56,7 +56,7 @@ app.use((req, res, next) => {
 function logRequest(platform, req) {
   const body = req.method === 'GET' ? req.query : req.body;
   const time = new Date();
-  console.log(`>>> ${time} Incoming request [${platform}][${req.path}] BODY: `, body);
+  console.log(`>>> ${time} Incoming request [${req.method}][${platform}][${req.path}] BODY: `, body);
 }
 
 function logError(platform, req, errorText) {
