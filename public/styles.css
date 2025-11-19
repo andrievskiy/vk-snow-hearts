@@ -42,3 +42,16 @@ header {
     margin-top: 24px; /* меньше отступ на больших экранах */
   }
 }
+@media (max-width: 600px) {
+ .actions {
+   width: 100%;
+   flex-direction: column;
+ }
+
+ header > h1 {
+   position: absolute;
+   top: 15px;
+   left: 0;
+   transform: scale(0.8);
+ }
+}
