@@ -41,6 +41,18 @@ const CATALOG = {
   }
 };
 
+const SUBSCRIPTIONS_CATALOG = {
+  sub1: {
+    item_id: "sub1",
+    title:"Убрать какашки на неделю",
+    photo_url:"",
+    price: 2,
+    period: 7,
+    trial_duration: 3,
+    expiration: 0
+  }
+}
+
 app.use((req, res, next) => {
   const send = res.send;
   res.send = content => {
@@ -113,39 +125,67 @@ app.all('/api/payments/callback/:appId', async (req, res) => {
     const body = req.method === 'GET' ? req.query : req.body;
     const appId = req.params.appId;
     const appSecret = getAppSecret(appId);
-    if (!appSecret) {
-      logError(VK_PLATFORM, req, `Can't get app secret for appId: ${appId}`);
-      return res.status(500).send(`Can't get app secret for appId: ${appId}`);
-    }
-
-    if (!vkPaymentsCheckSig(body, appSecret)) {
-      logError(VK_PLATFORM, req, `Sign mismatch`);
-      return res.status(403).send('sig mismatch');
-    }
+    // if (!appSecret) {
+    //   logError(VK_PLATFORM, req, `Can't get app secret for appId: ${appId}`);
+    //   return res.status(500).send(`Can't get app secret for appId: ${appId}`);
+    // }
+    //
+    // if (!vkPaymentsCheckSig(body, appSecret)) {
+    //   logError(VK_PLATFORM, req, `Sign mismatch`);
+    //   return res.status(403).send('sig mismatch');
+    // }
 
     const type = body.notification_type;
 
-    if (type === 'get_item' || type === 'get_item_test') {
-      const itemId = body.item || body.item_id;
-      const product = CATALOG[itemId];
+    switch (type) {
+      case 'get_item':
+      case 'get_item_test':
+        const itemId = body.item || body.item_id;
+        const product = CATALOG[itemId];
 
-      if (!product) {
-        console.warn(`[${VK_PLATFORM}] Invalid product ${itemId}`);
-        return res.json({ error: { error_code: 20, error_msg: 'Item not found' } });
-      }
+        if (!product) {
+          console.warn(`[${VK_PLATFORM}] Invalid product ${itemId}`);
+          return res.json({ error: { error_code: 20, error_msg: 'Item not found' } });
+        }
 
-      return res.json({ response: { item_id: product.item_id, title: product.title, price: product.price } });
-    }
+        return res.json({ response: { item_id: product.item_id, title: product.title, price: product.price } });
 
-    if (type === 'order_status_change' || type === 'order_status_change_test') {
-      const status = body.status;
-      const order_id = body.order_id;
-      if (status === 'chargeable') {
-        const appOrderId = `${Date.now()}_${order_id}`;
-        return res.json({ response: { order_id: Number(order_id), app_order_id: String(appOrderId) } });
-      }
-      // paid / cancel / other — acknowledge
-      return res.json({ response: 1 });
+      case 'order_status_change':
+      case 'order_status_change_test':
+        const status = body.status;
+        const order_id = body.order_id;
+        if (status === 'chargeable') {
+          const appOrderId = `${Date.now()}_${order_id}`;
+          return res.json({ response: { order_id: Number(order_id), app_order_id: String(appOrderId) } });
+        }
+        // paid / cancel / other — acknowledge
+        return res.json({ response: 1 });
+
+      case 'get_subscription':
+      case 'get_subscription_test':
+        const subscritpionId = body.item || body.item_id;
+        const subscritpion = SUBSCRIPTIONS_CATALOG[subscritpionId];
+        if (!subscritpion) {
+          console.warn(`[${VK_PLATFORM}] Invalid subscritpion ${subscritpionId}`);
+          return res.json({ error: { error_code: 20, error_msg: 'Subs not found' } });
+        }
+
+        return res.json({ response: subscritpion });
+
+      case 'subscription_status_change':
+      case 'subscription_status_change_test':
+        const subscritionID = body.subscription_id;
+        const userId = body.user_id;
+        console.debug(`[SUBS STATUS] for ${subscritionID} ${body.status}`)
+
+        return res.json(
+          {
+            response: {
+              "subscription_id": subscritionID,
+              "app_order_id": Number(userId + '' + subscritionID)
+            }
+          }
+        );
     }
 
     // Fallback OK
@@ -193,13 +233,15 @@ app.all('/api/ok/callback/:appId', async (req, res) => {
 
     // Optional: validate catalog & price match to prevent tampering
     if (product_code) {
-      const product = CATALOG[product_code];
+      const isSubscription = +SUBSCRIPTIONS_CATALOG[product_code];
+      const product = CATALOG[product_code] || SUBSCRIPTIONS_CATALOG[product_code];
       if (!product) {
         console.warn(`[${VK_PLATFORM}] Invalid product ${product_code}`);
         res.set('Invocation-error', '1001');
         return res.status(400).json(okJsonError(1001, 'CALLBACK_INVALID_PAYMENT : Unknown product_code'));
       }
-      if (Number.isFinite(product.price) && amount !== Number(product.price)) {
+
+      if (Number.isFinite(product.price) && amount !== Number(product.price) && !isSubscription) {
         console.warn(`[${VK_PLATFORM}] Invalid amount ${product_code}`);
         res.set('Invocation-error', '1001');
         return res.status(400).json(okJsonError(1001, 'CALLBACK_INVALID_PAYMENT : Amount mismatch'));

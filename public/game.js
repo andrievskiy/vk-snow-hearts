@@ -256,6 +256,20 @@ document.getElementById('payItem1').addEventListener('click', async () => {
   }
 });
 
+document.getElementById('paySubscription').addEventListener('click', async () => {
+  try {
+    console.log('🧾 Отправка VKWebAppShowSubscriptionBox...');
+    const result = await bridge.send('VKWebAppShowSubscriptionBox', {
+      action: 'create',
+      item: 'sub1',
+    });
+    console.log('✅ Успех VKWebAppShowSubscriptionBox:', result);
+  } catch (err) {
+    console.error('❌ Ошибка VKWebAppShowSubscriptionBox:', err);
+    /* haptic removed: non-tap */
+  }
+});
+
 document.getElementById('payItem2').addEventListener('click', async () => {
   try {
     console.log('🧾 Отправка VKWebAppShowOrderBox...');
@@ -273,7 +287,7 @@ document.getElementById('payItem2').addEventListener('click', async () => {
 bridge.subscribe(async ({ detail }) => {
   const { type, data } = detail || {};
 
-if (type === 'VKWebAppShowOrderBoxResult') {
+if (type === 'VKWebAppShowOrderBoxResult' || type === 'VKWebAppShowSubscriptionBoxResult') {
   console.log('✅ Покупка успешна, order_id:', data.order_id);
   convertAllSnowflakes(); // сразу превращаем снежинки
 } else {
