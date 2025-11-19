@@ -242,6 +242,34 @@ document.getElementById('payAllBtn').addEventListener('click', async () => {
   }
 });
 
+document.getElementById('payItem1').addEventListener('click', async () => {
+  try {
+    console.log('🧾 Отправка VKWebAppShowOrderBox...');
+    const result = await bridge.send('VKWebAppShowOrderBox', {
+      type: 'item',
+      item: 'item1',
+    });
+    console.log('✅ Успех VKWebAppShowOrderBox:', result);
+  } catch (err) {
+    console.error('❌ Ошибка VKWebAppShowOrderBox:', err);
+    /* haptic removed: non-tap */
+  }
+});
+
+document.getElementById('payItem2').addEventListener('click', async () => {
+  try {
+    console.log('🧾 Отправка VKWebAppShowOrderBox...');
+    const result = await bridge.send('VKWebAppShowOrderBox', {
+      type: 'item',
+      item: 'item2',
+    });
+    console.log('✅ Успех VKWebAppShowOrderBox:', result);
+  } catch (err) {
+    console.error('❌ Ошибка VKWebAppShowOrderBox:', err);
+    /* haptic removed: non-tap */
+  }
+});
+
 bridge.subscribe(async ({ detail }) => {
   const { type, data } = detail || {};
 

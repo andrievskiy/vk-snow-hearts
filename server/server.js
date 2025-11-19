@@ -45,8 +45,7 @@ app.use((req, res, next) => {
   const send = res.send;
   res.send = content => {
     const time = new Date();
-    console.log(`[${time}] [${req.path}] Response code: ${res.statusCode}`);
-    console.log(`[${req.path}] Response body: `, content);
+    console.log(`<<< ${time} [${req.path}](${res.statusCode})`, content);
     res.send = send;
     return res.send(content);
   }
@@ -57,17 +56,16 @@ app.use((req, res, next) => {
 function logRequest(platform, req) {
   const body = req.method === 'GET' ? req.query : req.body;
   const time = new Date();
-  console.log(`[${time}] Incoming request [${platform}][${req.path}] BODY: `, body);
+  console.log(`>>> ${time} Incoming request [${platform}][${req.path}] BODY: `, body);
 }
 
 function logError(platform, req, errorText) {
   const body = req.method === 'GET' ? req.query : req.body;
   const time = new Date();
 
-  console.error(`[${time}] ERROR ON [${platform}][${req.path}] REQ BODY: `, body);
-  console.error(`[ERROR] ${errorText}`);
+  console.error(`[ERROR] [${time}] ${errorText}`);
+  console.error(`[ERROR] ON [${platform}][${req.path}] REQ BODY: `, body);
 }
-
 
 // ---- Tolerant VK Payments signature check (MD5) ----
 function vkPaymentsCheckSig(params, appSecret) {
@@ -108,11 +106,6 @@ function getAppSecret(appId) {
   return process.env[key];
 }
 
-function getOkAppSecret(appId) {
-  const key = `OK_APP_SECRET_${appId}`;
-  return process.env[key];
-}
-
 // ===== Payments Callback =====
 app.all('/api/payments/callback/:appId', async (req, res) => {
   try {
@@ -120,7 +113,6 @@ app.all('/api/payments/callback/:appId', async (req, res) => {
     const body = req.method === 'GET' ? req.query : req.body;
     const appId = req.params.appId;
     const appSecret = getAppSecret(appId);
-    console.log(`Secret ${appSecret}`);
     if (!appSecret) {
       logError(VK_PLATFORM, req, `Can't get app secret for appId: ${appId}`);
       return res.status(500).send(`Can't get app secret for appId: ${appId}`);
@@ -235,6 +227,6 @@ app.listen(PORT,()=>console.log('Server listening on :'+PORT));
 app.use(express.json()); // если уже есть — второй раз не добавляй
 
 app.post('/log', (req, res) => {
-  console.log('[AD]', req.body); // смотри тут всё, что прилетает с клиента
+  console.debug('[Log AD]', req.body); // смотри тут всё, что прилетает с клиента
   res.sendStatus(204);
 });
