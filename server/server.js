@@ -27,6 +27,7 @@ const CATALOG = {
   convert_all_1: {
     item_id: 'convert_all_1',
     title: 'Превратить все снежинки',
+    photo_url: 'https://w7.pngwing.com/pngs/437/274/png-transparent-heart-red-heart-thumbnail.png',
     price: 1
   },
   item1: {
@@ -45,7 +46,7 @@ const SUBSCRIPTIONS_CATALOG = {
   sub1: {
     item_id: "sub1",
     title:"Убрать какашки на неделю",
-    photo_url:"",
+    photo_url:"https://w7.pngwing.com/pngs/437/274/png-transparent-heart-red-heart-thumbnail.png",
     price: 2,
     period: 7,
     trial_duration: 3,
