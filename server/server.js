@@ -3,13 +3,16 @@ import compression from 'compression';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import fetch from 'node-fetch';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const VK_PLATFORM = 'vk';
+const OK_PLATFORM  = 'ok';
 
 const app = express();
 app.use(cors());
@@ -19,19 +22,52 @@ app.use(express.urlencoded({ extended: true })); // VK sends x-www-form-urlencod
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
-// ===== Helpers =====
-function base64url(input){return input.replace(/\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}
-function verifyVKSign(query, secret){
-  const sign = query.sign;
-  if(!sign) return false;
-  const params = Object.keys(query)
-    .filter(k => k.startsWith('vk_'))
-    .sort()
-    .map(k => `${k}=${query[k]}`)
-    .join('&');
-  const hash = crypto.createHmac('sha256', secret).update(params).digest('base64');
-  return base64url(hash) === sign;
+// ===== Catalog for get_item =====
+const CATALOG = {
+  convert_all_1: {
+    item_id: 'convert_all_1',
+    title: 'Превратить все снежинки',
+    price: 1
+  },
+  item1: {
+    item_id: 'item1',
+    title: 'Тестовый айтем за 10',
+    price: 10
+  },
+  item2: {
+    item_id: 'item2',
+    title: 'Тестовый айтем за 2',
+    price: 2
+  }
+};
+
+app.use((req, res, next) => {
+  const send = res.send;
+  res.send = content => {
+    const time = new Date();
+    console.log(`[${time}] [${req.path}] Response code: ${res.statusCode}`);
+    console.log(`[${req.path}] Response body: `, content);
+    res.send = send;
+    return res.send(content);
+  }
+
+  next();
+});
+
+function logRequest(platform, req) {
+  const body = req.method === 'GET' ? req.query : req.body;
+  const time = new Date();
+  console.log(`[${time}] Incoming request [${platform}][${req.path}] BODY: `, body);
 }
+
+function logError(platform, req, errorText) {
+  const body = req.method === 'GET' ? req.query : req.body;
+  const time = new Date();
+
+  console.error(`[${time}] ERROR ON [${platform}][${req.path}] REQ BODY: `, body);
+  console.error(`[ERROR] ${errorText}`);
+}
+
 
 // ---- Tolerant VK Payments signature check (MD5) ----
 function vkPaymentsCheckSig(params, appSecret) {
@@ -55,36 +91,43 @@ function vkPaymentsCheckSig(params, appSecret) {
   return false;
 }
 
-// ===== Debug logging (remove after debug) =====
-const DEBUG_PAY_LOG = process.env.DEBUG_PAY_LOG === '1';
-app.all('/api/payments/callback', (req, res, next) => {
-  if (DEBUG_PAY_LOG) {
-    const body = req.method === 'GET' ? req.query : req.body;
-    console.log('[VK PAY] incoming', req.method, body);
-    console.log('[VK PAY] response', res.method, body);
-  }
-  next();
-});
+// Compute signature: sig = MD5( concat(sorted key=value, without 'sig') + OK_SECRET_KEY )
+function okCheckSig(params, secret) {
+  const parts = Object.keys(params)
+    .filter(k => k !== 'sig')
+    .sort()
+    .map(k => `${k}=${params[k]}`)
+    .join('');
+  const md5 = crypto.createHash('md5').update(parts + secret).digest('hex');
+  return md5 === String(params.sig || '').toLowerCase();
+}
 
-// ===== Catalog for get_item =====
-const CATALOG = {
-  convert_all_1: {
-    item_id: 'convert_all_1',
-    title: 'Превратить все снежинки',
-    price: 1
-  }
-};
+
+function getAppSecret(appId) {
+  const key = `APP_SECRET_${appId}`;
+  return process.env[key];
+}
+
+function getOkAppSecret(appId) {
+  const key = `OK_APP_SECRET_${appId}`;
+  return process.env[key];
+}
 
 // ===== Payments Callback =====
-app.all('/api/payments/callback', async (req, res) => {
+app.all('/api/payments/callback/:appId', async (req, res) => {
   try {
+    logRequest(VK_PLATFORM, req);
     const body = req.method === 'GET' ? req.query : req.body;
-    const { VK_APP_SECRET } = process.env;
+    const appId = req.params.appId;
+    const appSecret = getAppSecret(appId);
+    console.log(`Secret ${appSecret}`);
+    if (!appSecret) {
+      logError(VK_PLATFORM, req, `Can't get app secret for appId: ${appId}`);
+      return res.status(500).send(`Can't get app secret for appId: ${appId}`);
+    }
 
-    if (!vkPaymentsCheckSig(body, VK_APP_SECRET)) {
-      if (DEBUG_PAY_LOG) {
-        console.log('[VK PAY] sig mismatch, body=', body);
-      }
+    if (!vkPaymentsCheckSig(body, appSecret)) {
+      logError(VK_PLATFORM, req, `Sign mismatch`);
       return res.status(403).send('sig mismatch');
     }
 
@@ -93,9 +136,12 @@ app.all('/api/payments/callback', async (req, res) => {
     if (type === 'get_item' || type === 'get_item_test') {
       const itemId = body.item || body.item_id;
       const product = CATALOG[itemId];
+
       if (!product) {
+        console.warn(`[${VK_PLATFORM}] Invalid product ${itemId}`);
         return res.json({ error: { error_code: 20, error_msg: 'Item not found' } });
       }
+
       return res.json({ response: { item_id: product.item_id, title: product.title, price: product.price } });
     }
 
@@ -118,48 +164,6 @@ app.all('/api/payments/callback', async (req, res) => {
   }
 });
 
-// ===== Client verify via orders.getById =====
-app.post('/api/orders/verify', async (req,res)=>{
-  try{
-    const { app_order_id, item_id, vk_params } = req.body||{};
-    if(!app_order_id) return res.status(400).json({ok:false,error:'no_order'});
-    const { VK_APP_SECRET, VK_SERVICE_TOKEN, VK_API_VERSION='5.131', VERIFY_SIGN='true', VK_TEST_PAY='0' }=process.env;
-    if(VERIFY_SIGN==='true' && (!vk_params || !verifyVKSign(vk_params,VK_APP_SECRET))) return res.status(403).json({ok:false,error:'bad_sign'});
-    const params = new URLSearchParams({v:VK_API_VERSION,access_token:VK_SERVICE_TOKEN,order_id:String(app_order_id)});
-    if(VK_TEST_PAY==='1') params.set('test_mode','1');
-    const r = await fetch('https://api.vk.com/method/orders.getById?'+params.toString());
-    const j = await r.json();
-    const o = j.response && (j.response[0]||j.response);
-    if(!o) return res.status(404).json({ok:false,error:'not_found'});
-    if(o.status==='charged' && (!item_id || o.item===item_id) && o.amount>=1) return res.json({ok:true});
-    return res.status(409).json({ok:false,error:'not_charged',o});
-  }catch(e){console.error(e);res.status(500).json({ok:false,error:'server'});}
-});
-
-
-// ===== Odnoklassniki (OK) Payments — callbacks.payment =====
-// Docs: https://apiok.ru/dev/methods/rest/callbacks/callbacks.payment
-// Works via HTTP GET (per docs), but we accept ALL to be safe and parse from query/body.
-// Response MUST be application/json or application/xml; we return JSON.
-// OK will retry up to 3 times if non-200 or invalid response.
-const DEBUG_OK_LOG = process.env.DEBUG_OK_LOG === '1';
-const OK_ENFORCE_GET = process.env.OK_ENFORCE_GET === '0'; // set to '1' to enforce GET-only
-
-// Compute signature: sig = MD5( concat(sorted key=value, without 'sig') + OK_SECRET_KEY )
-function okCheckSig(params, secret) {
-  const parts = Object.keys(params)
-    .filter(k => k !== 'sig')
-    .sort()
-    .map(k => `${k}=${params[k]}`)
-    .join('');
-  const md5 = crypto.createHash('md5').update(parts + secret).digest('hex');
-  return md5 === String(params.sig || '').toLowerCase();
-}
-
-// Simple catalog check (map OK product_code to our items/prices in OKs)
-const OK_CATALOG = {
-  convert_all_1: { price: 1, title: 'Превратить все снежинки' }
-};
 
 function okJsonError(code, msg) {
   // Per docs, error payload shape:
@@ -168,25 +172,22 @@ function okJsonError(code, msg) {
 }
 
 // Endpoint for OK callbacks (OK может вызывать и /api/payments/callback)
-app.all(['/api/ok/callback', '/api/payments/callback'], async (req, res) => {
+app.all('/api/ok/callback/:appId', async (req, res) => {
   try {
-    if (OK_ENFORCE_GET && req.method !== 'GET') {
+    logRequest(OK_PLATFORM, req);
+    if (req.method !== 'GET') {
+      logError(OK_PLATFORM, 'Invalid method');
       res.set('Invocation-error', '104'); // Using 104 as generic error per docs
       return res.status(405).json(okJsonError(104, 'Only GET is allowed by OK docs'));
     }
 
     const body = req.method === 'GET' ? req.query : (req.body || {});
-    if (DEBUG_OK_LOG) console.log('[OK PAY] incoming', req.method, body);
-
-    const { OK_SECRET_KEY = '' } = process.env;
-    if (!OK_SECRET_KEY) {
-      res.set('Invocation-error', '2');
-      return res.status(500).json(okJsonError(2, 'SERVICE : OK secret missing'));
-    }
+    const appId = req.params.appId;
+    const appSecret = getAppSecret(appId);
 
     // signature
-    if (!okCheckSig(body, OK_SECRET_KEY)) {
-      if (DEBUG_OK_LOG) console.log('[OK PAY] sig mismatch', body);
+    if (!okCheckSig(body, appSecret)) {
+      logError(VK_PLATFORM, req, `Sign mismatch`);
       res.set('Invocation-error', '104');
       return res.status(403).json(okJsonError(104, 'PARAM_SIGNATURE : Invalid signature'));
     }
@@ -200,12 +201,14 @@ app.all(['/api/ok/callback', '/api/payments/callback'], async (req, res) => {
 
     // Optional: validate catalog & price match to prevent tampering
     if (product_code) {
-      const product = OK_CATALOG[product_code];
+      const product = CATALOG[product_code];
       if (!product) {
+        console.warn(`[${VK_PLATFORM}] Invalid product ${product_code}`);
         res.set('Invocation-error', '1001');
         return res.status(400).json(okJsonError(1001, 'CALLBACK_INVALID_PAYMENT : Unknown product_code'));
       }
       if (Number.isFinite(product.price) && amount !== Number(product.price)) {
+        console.warn(`[${VK_PLATFORM}] Invalid amount ${product_code}`);
         res.set('Invocation-error', '1001');
         return res.status(400).json(okJsonError(1001, 'CALLBACK_INVALID_PAYMENT : Amount mismatch'));
       }
@@ -224,7 +227,6 @@ app.all(['/api/ok/callback', '/api/payments/callback'], async (req, res) => {
 // ===== Static & health =====
 app.use(express.static(PUBLIC_DIR,{maxAge:'1h',index:false}));
 app.get('/',(req,res)=>res.sendFile(path.join(PUBLIC_DIR,'index.html')));
-app.get('/health',(_,res)=>res.json({ok:true}));
 
 const PORT=process.env.PORT||8080;
 app.listen(PORT,()=>console.log('Server listening on :'+PORT));

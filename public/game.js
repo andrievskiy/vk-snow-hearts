@@ -19,19 +19,149 @@ const gravity=0.03, windMax=0.05, spawnRate=0.018;
 const snow=[], hearts=[];
 
 function rand(a,b){return a+Math.random()*(b-a);} 
-function drawSnowflake(x,y,s){
-  ctx.save();ctx.translate(x,y);ctx.strokeStyle = 'rgba(255,255,255,0.9)';ctx.lineWidth = 1.2;
-  for(let i=0;i<6;i++){ctx.rotate(Math.PI/3);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-s);
-    ctx.moveTo(0,-s*0.6);ctx.lineTo(s*0.2,-s*0.8);ctx.moveTo(0,-s*0.3);ctx.lineTo(s*0.2,-s*0.5);ctx.stroke();}
-  ctx.restore();
-}
+
 function drawHeart(x,y,s){
-  ctx.save();ctx.translate(x,y);ctx.beginPath();const k=s/16;
-  ctx.moveTo(0,4*k);ctx.bezierCurveTo(0,-2*k,-8*k,-2*k,-8*k,4*k);
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.beginPath();
+  const k=s/16;
+  ctx.moveTo(0,4*k);
+  ctx.bezierCurveTo(0,-2*k,-8*k,-2*k,-8*k,4*k);
   ctx.bezierCurveTo(-8*k,10*k,0,14*k,0,16*k);
   ctx.bezierCurveTo(0,14*k,8*k,10*k,8*k,4*k);
   ctx.bezierCurveTo(8*k,-2*k,0,-2*k,0,4*k);
-  ctx.fillStyle='rgba(255,85,130,0.95)';ctx.fill();ctx.restore();
+  ctx.fillStyle='rgba(255,85,130,0.95)';
+  ctx.fill();
+  ctx.restore();
+}
+
+
+function drawPoop(x, y, s) {
+  ctx.save();
+  ctx.translate(x, y);
+  const k = s / 8;
+
+  //
+  // ЕДИНЫЙ ЗАМКНУТЫЙ КОНТУР 💩
+  //
+  ctx.beginPath();
+
+  // Начинаем снизу слева
+  ctx.moveTo(-10 * k, 6 * k);
+
+  // Нижний слой
+  ctx.bezierCurveTo(-14 * k, 6 * k, -14 * k, 0, -10 * k, -2 * k);
+  ctx.bezierCurveTo(-12 * k, -6 * k, -6 * k, -8 * k, 0, -8 * k);
+  ctx.bezierCurveTo(6 * k, -8 * k, 12 * k, -6 * k, 10 * k, -2 * k);
+  ctx.bezierCurveTo(14 * k, 0, 14 * k, 6 * k, 10 * k, 6 * k);
+
+  // Средний слой
+  ctx.bezierCurveTo(12 * k, 4 * k, 9 * k, -1 * k, 5 * k, -4 * k);
+  ctx.bezierCurveTo(6 * k, -8 * k, 3 * k, -12 * k, 0, -12 * k);
+  ctx.bezierCurveTo(-3 * k, -12 * k, -6 * k, -8 * k, -5 * k, -4 * k);
+  ctx.bezierCurveTo(-9 * k, -1 * k, -12 * k, 4 * k, -10 * k, 6 * k);
+
+  // Верхний завиток
+  ctx.bezierCurveTo(-8 * k, 3 * k, -5 * k, -3 * k, -1 * k, -8 * k);
+  ctx.bezierCurveTo(1 * k, -11 * k, 4 * k, -11 * k, 2 * k, -8 * k);
+  ctx.bezierCurveTo(5 * k, -3 * k, 8 * k, 3 * k, 10 * k, 6 * k);
+
+  ctx.closePath(); // ← важно!
+  ctx.fillStyle = "#8B5A2B";
+  ctx.fill();
+
+  //
+  // Яркие непрозрачные блики
+  //
+  ctx.beginPath();
+  ctx.moveTo(4 * k, -4 * k);
+  ctx.bezierCurveTo(8 * k, -6 * k, 10 * k, -2 * k, 6 * k, 0 * k);
+  ctx.bezierCurveTo(4 * k, 2 * k, 2 * k, -2 * k, 4 * k, -4 * k);
+  ctx.fillStyle = "#C9A074";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(-1 * k, -11 * k);
+  ctx.bezierCurveTo(1 * k, -13 * k, 3 * k, -12 * k, 1 * k, -10 * k);
+  ctx.bezierCurveTo(0 * k, -9 * k, -2 * k, -10 * k, -1 * k, -11 * k);
+  ctx.fillStyle = "#E3C7A4";
+  ctx.fill();
+
+  //
+  // Глаза
+  //
+  function eye(cx) {
+    // Белок
+    ctx.beginPath();
+    ctx.arc(cx * k, -1 * k, 3 * k, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+
+    // Зрачок
+    ctx.beginPath();
+    ctx.arc(cx * k, -1 * k, 1.5 * k, 0, Math.PI * 2);
+    ctx.fillStyle = "#3A2A1A";
+    ctx.fill();
+
+    // Маленький блик
+    ctx.beginPath();
+    ctx.arc((cx - 0.6) * k, (-1.6) * k, 0.7 * k, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+  }
+
+  eye(-4);
+  eye(4);
+
+  //
+  // Улыбка
+  //
+  ctx.beginPath();
+  ctx.moveTo(-4 * k, 3 * k);
+  ctx.bezierCurveTo(-2 * k, 6 * k, 2 * k, 6 * k, 4 * k, 3 * k);
+  ctx.bezierCurveTo(2 * k, 4 * k, -2 * k, 4 * k, -4 * k, 3 * k);
+  ctx.fillStyle = "#3A2A1A";
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawPenis(x, y, s) {
+  const colors = ['red', 'green', 'yellow', 'blue'];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  ctx.save();
+  ctx.translate(x,y);
+  const k=s / 50;
+  ctx.moveTo(0, 4 * k);
+
+  ctx.beginPath();
+  ctx.arc(150 * k, 100 * k, 25 * k ,0, 2 * Math.PI,false);
+  ctx.fillStyle=color;
+  ctx.fill();
+  ctx.lineWidth=1;
+  ctx.strokeStyle=color;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(200 * k,100 * k,25 * k ,0,2*Math.PI,false);
+  ctx.fillStyle=color;
+  ctx.fill();
+  ctx.lineWidth=1;
+  ctx.strokeStyle=color;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.scale(1,2);
+  ctx.arc(175 * k,26 * k,25 * k ,0,2*Math.PI,false);
+  ctx.restore();
+  ctx.fillStyle=color;
+  ctx.fill();
+  ctx.lineWidth=1;
+  ctx.strokeStyle=color;
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 function spawnSnow(){ if(Math.random()<spawnRate) snow.push({x:rand(0,W),y:-10,vx:rand(-windMax,windMax),vy:rand(0.2,0.6),size:rand(4,9)}); }
@@ -64,8 +194,9 @@ function update(dt){
   }
 }
 
+
 function render(){ ctx.clearRect(0,0,W,H); ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(0,H-18,W,18);
-  for(const s of snow) drawSnowflake(s.x,s.y,s.size); for(const h of hearts) drawHeart(h.x,h.y,h.size); }
+  for(const s of snow) drawPoop(s.x,s.y,s.size); for(const h of hearts) drawPenis(h.x,h.y,h.size); }
 let last=performance.now(); function loop(t){ const dt=Math.min(0.033,(t-last)/1000); last=t; spawnSnow(); update(dt); render(); requestAnimationFrame(loop);} requestAnimationFrame(loop);
 
 // Тап/клик — превратить ближайшую снежинку + хаптик
